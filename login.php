@@ -1,47 +1,51 @@
 <?php
-// Mostrar errores en el navegador (útil para depurar)
-ini_set('display_errors', 1);
-ini_set('display_startup_errors', 1);
+ini_set("display_errors", 1);
+ini_set("display_startup_errors", 1);
 error_reporting(E_ALL);
-
-// Iniciar sesión y configurar zona horaria
 session_start();
-date_default_timezone_set('America/El_Salvador');
+date_default_timezone_set("America/El_Salvador");
 
-// Lista de usuarios válidos [usuario => contraseña]
+// Incluir ips.php desde la raíz
+include("ips.php");
+
+// Detectar IP real
+$ip_cliente = $_SERVER["REMOTE_ADDR"];
+
+// Normalizar IP si viene en formato IPv6 mapeado
+if (strpos($ip_cliente, "::ffff:") === 0) {
+    $ip_cliente = substr($ip_cliente, 7);
+}
+
+// Validar si la IP está permitida
+if (!ip_in_ranges($ip_cliente, $rango)) {
+    $mensaje = "[" . date("Y-m-d H:i:s") . "] Acceso bloqueado desde IP no autorizada: $ip_cliente\n";
+    file_put_contents("logs/events.log", $mensaje, FILE_APPEND);
+    die("Acceso no permitido desde esta IP.");
+}
+
+// Lista de usuarios válidos
 $usuarios_validos = [
     "admin" => "1234",
     "Josue Vladimir Menjivar Cardoza" => "toor"
 ];
 
-// Obtener datos del formulario
+// Capturar datos del formulario
 $usuario = $_POST['user'] ?? '';
 $contrasena = $_POST['pass'] ?? '';
 
-// Ruta al archivo de log
-$log_file = __DIR__ . "/logs/events.log";
-
-// Fecha y hora del intento
+// Registrar logs
 $fecha = date("Y-m-d H:i:s");
+$log_file = "logs/events.log";
 
-// Verificar credenciales
 if (array_key_exists($usuario, $usuarios_validos) && $contrasena === $usuarios_validos[$usuario]) {
-    // Inicio de sesión exitoso
     $_SESSION['usuario'] = $usuario;
-
-    // Escribir en el log
-    $mensaje = "[$fecha] Usuario '$usuario' ingresó exitosamente." . PHP_EOL;
+    $mensaje = "[$fecha] Usuario '$usuario' ingresó exitosamente desde $ip_cliente.\n";
     file_put_contents($log_file, $mensaje, FILE_APPEND);
-
-    // Redirigir a welcome.php
     header("Location: welcome.php");
     exit;
 } else {
-    // Inicio de sesión fallido
-    $mensaje = "[$fecha] Intento fallido de inicio de sesión con usuario: '$usuario'." . PHP_EOL;
+    $mensaje = "[$fecha] Intento fallido de inicio de sesión con usuario: '$usuario' desde $ip_cliente.\n";
     file_put_contents($log_file, $mensaje, FILE_APPEND);
-
-    // Redirigir a index.php con mensaje de error
     header("Location: index.php?error=1");
     exit;
 }
